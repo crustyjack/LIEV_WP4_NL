@@ -4,4 +4,3 @@ gspread
 shapely
 folium
 streamlit_folium
-folium.plugins
