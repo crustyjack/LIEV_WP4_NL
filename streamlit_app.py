@@ -24,9 +24,9 @@ bg = background_code.BackgroundCode()
 
 # Load sheet only if not already in session_state
 if "workbook" not in st.session_state:
-    st.session_state.sheet = bg.load_Gsheets()
+    st.session_state.workbook = bg.load_Gsheets()
 
-workbook = st.session_state.sheet
+workbook = st.session_state.workbook
 
 # Load profiles dataframe only if not already in session_state
 if "MSR_locations" not in st.session_state:
@@ -52,14 +52,14 @@ msr_gdf = gpd.GeoDataFrame(
 )
 
 # working version
-
+"""
 test_msrs = msr_gdf.copy()
 
 # Convert to WGS84
 gdf_wgs = test_msrs.to_crs(epsg=4326)
 
 # Extract coordinates
-coords = list(zip(gdf_wgs.geometry.y, gdf_wgs.geometry.x))  # lat, lon
+coords = list(zip(gdf_wgs.geometry.y, gdf_wgs.geometry.x, gdf_wgs["ID"]))  # lat, lon
 
 # Create map
 mean_lat = gdf_wgs.geometry.y.mean()
@@ -71,3 +71,45 @@ FastMarkerCluster(coords).add_to(m)
 
 # Render in Streamlit
 st_folium(m, width=700, height=500)
+
+"""
+
+from folium.plugins import FastMarkerCluster
+import folium
+from streamlit_folium import st_folium
+
+test_msrs = msr_gdf.copy()
+
+# Initialize session state
+if "selected_id" not in st.session_state:
+    st.session_state.selected_id = None
+
+gdf_wgs = test_msrs.to_crs(epsg=4326)
+
+m = folium.Map(location=[gdf_wgs.geometry.y.mean(), gdf_wgs.geometry.x.mean()], zoom_start=7)
+
+callback = """
+function (row) {
+    var marker = L.marker(new L.LatLng(row[0], row[1]));
+    marker.bindPopup(String(row[2]));
+    marker.bindTooltip(String(row[2]));
+    return marker;
+}
+"""
+
+
+coords = list(zip(gdf_wgs.geometry.y, gdf_wgs.geometry.x, gdf_wgs["ID"]))
+FastMarkerCluster(coords, callback=callback).add_to(m)
+
+map_data = st_folium(m, width=700, height=500)
+
+# Update session state when a marker is clicked
+if map_data.get("last_object_clicked_tooltip"):
+    st.session_state.selected_id = map_data["last_object_clicked_tooltip"]
+
+# This now persists across reruns
+if st.session_state.selected_id:
+    st.success(f"Selected ID: **{st.session_state.selected_id}**")
+    st.write("Proceeding with ID:", st.session_state.selected_id)
+    # your next step code here...
+
