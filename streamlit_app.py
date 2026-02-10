@@ -1,4 +1,3 @@
-import gspread
 import folium
 import background_code
 import streamlit as st
