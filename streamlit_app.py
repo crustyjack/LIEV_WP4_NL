@@ -30,6 +30,17 @@ if "MSRs" not in st.session_state:
 if "vbo_objects" not in st.session_state:
     st.session_state.vbo_objects = bg.get_sheet_dataframe("Objects", workbook)
 
+st.write("\n--- DEBUG GEOMETRIES ---")
+
+for i, g in enumerate(st.session_state.vbo_objects["vbo_points1"]):
+    try:
+        wkt.loads(g)
+    except Exception as e:
+        st.write("BROKEN ROW:", i)
+        st.write("VALUE:", repr(g))
+        st.write("ERROR:", e)
+        break
+
 # --- Build GeoDataFrames ---
 @st.cache_resource
 def build_msr_gdf(_df):
@@ -37,16 +48,27 @@ def build_msr_gdf(_df):
         _df["geometry"] = _df["geometry"].apply(wkt.loads)
     return gpd.GeoDataFrame(_df, geometry="geometry", crs="EPSG:28992")
 
-@st.cache_resource
-def build_vbo_gdf(_df):
-    if _df["geometry"].dtype == object and isinstance(_df["geometry"].iloc[0], str):
-        _df = _df[_df["geometry"].notna()]
-        _df = _df[_df["geometry"].str.strip() != ""]
-        _df["geometry"] = _df["geometry"].apply(wkt.loads)
-    return gpd.GeoDataFrame(_df, geometry="geometry", crs="EPSG:28992")
+# @st.cache_resource
+def build_vbo_gdf(_df, col_name):
+
+    print("\n--- DEBUG GEOMETRIES ---")
+
+    for i, g in enumerate(_df[col_name]):
+        try:
+            wkt.loads(g)
+        except Exception as e:
+            print("BROKEN ROW:", i)
+            print("VALUE:", repr(g))
+            print("ERROR:", e)
+            break
+    if _df[col_name].dtype == object and isinstance(_df[col_name].iloc[0], str):
+        _df = _df[_df[col_name].notna()]
+        _df = _df[_df[col_name].str.strip() != ""]
+        _df[col_name] = _df[col_name].apply(wkt.loads)
+    return gpd.GeoDataFrame(_df, geometry=col_name, crs="EPSG:28992")
 
 msr_gdf = build_msr_gdf(st.session_state.MSRs)
-houses_gdf = build_vbo_gdf(st.session_state.vbo_objects)
+houses_gdf = build_vbo_gdf(st.session_state.vbo_objects, "vbo_points1")
 
 # --- Session state ---
 if "selected_id" not in st.session_state:
@@ -70,42 +92,63 @@ def build_base_map(_gdf):
 
 m = build_base_map(msr_gdf)
 
-m = build_base_map(msr_gdf)
+# --- Create grid layout ---
+left_col, right_col = st.columns([1, 1])  # map takes 2/3, data takes 1/3
 
-# --- Render main map --- (only once!)
-map_data = st_folium(
-    m,
-    width=700,
-    height=500,
-    key="main_map",
-)
+with left_col:
+    # --- Main MSR map ---
+    map_data = st_folium(
+        m,
+        width="100%",
+        height=400,
+        key="main_map",
+    )
 
-# --- Capture click ---
-if map_data.get("last_object_clicked_tooltip"):
-    st.session_state.selected_id = map_data["last_object_clicked_tooltip"]
+    # --- Capture click ---
+    if map_data.get("last_object_clicked_tooltip"):
+        st.session_state.selected_id = map_data["last_object_clicked_tooltip"]
 
-# --- Show house map below ---
-if st.session_state.selected_id:
-    st.success(f"Selected ID: **{st.session_state.selected_id}**")
+    # --- House map ---
+    if st.session_state.selected_id:
+        selected_houses = houses_gdf[
+            houses_gdf["owner_msr"].astype(str) == str(st.session_state.selected_id)
+        ].to_crs(epsg=4326)
 
-    selected_houses = houses_gdf[houses_gdf["owner_msr"].astype(str) == str(st.session_state.selected_id)].to_crs(epsg=4326)
+        if len(selected_houses) > 0:
+            house_map = folium.Map(
+                location=[
+                    selected_houses.geometry.centroid.y.mean(),
+                    selected_houses.geometry.centroid.x.mean()
+                ],
+                zoom_start=14
+            )
+            for geom in selected_houses.geometry:
+                for point in geom.geoms:
+                    folium.CircleMarker(
+                        location=[point.y, point.x],
+                        radius=5,
+                        color="red",
+                        fill=True,
+                        fill_opacity=0.8,
+                    ).add_to(house_map)
 
-    if len(selected_houses) > 0:
-        house_map = folium.Map(
-            location=[selected_houses.geometry.centroid.y.mean(), selected_houses.geometry.centroid.x.mean()],
-            zoom_start=14
-        )
-        for geom in selected_houses.geometry:
-            for point in geom.geoms:
-                folium.CircleMarker(
-                    location=[point.y, point.x],
-                    radius=5,
-                    color="red",
-                    fill=True,
-                    fill_opacity=0.8,
-                ).add_to(house_map)
+            st.subheader(f"Houses — MSR {st.session_state.selected_id}")
+            st_folium(house_map, width="100%", height=400, key="house_map")
+        else:
+            st.warning("No houses found for this MSR.")
 
-        st.subheader(f"Houses connected to MSR {st.session_state.selected_id}")
-        st_folium(house_map, width=700, height=400, key="house_map")
+with right_col:
+    if st.session_state.selected_id:
+        st.subheader(f"MSR {st.session_state.selected_id}")
+
+        # Filter MSR row
+        msr_row = msr_gdf[msr_gdf["ID"].astype(str) == str(st.session_state.selected_id)]
+
+        if len(msr_row) > 0:
+            # Display all columns as a simple table
+            # Drop geometry column since it's not human readable
+            display_data = msr_row.drop(columns="geometry").T
+            display_data.columns = ["Value"]
+            st.dataframe(display_data, use_container_width=True)
     else:
-        st.warning("No houses found for this MSR ID.")
+        st.info("👈 Click an MSR point on the map to see details here.")
