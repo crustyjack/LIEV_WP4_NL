@@ -25,21 +25,10 @@ if "workbook" not in st.session_state:
 workbook = st.session_state.workbook
 
 if "MSRs" not in st.session_state:
-    st.session_state.MSRs = bg.get_sheet_dataframe("MSRs", workbook)
+    st.session_state.MSRs = bg.get_sheet_dataframe("MSRs short", workbook)
 
 if "vbo_objects" not in st.session_state:
     st.session_state.vbo_objects = bg.get_sheet_dataframe("Objects", workbook)
-
-st.write("\n--- DEBUG GEOMETRIES ---")
-
-for i, g in enumerate(st.session_state.vbo_objects["vbo_points1"]):
-    try:
-        wkt.loads(g)
-    except Exception as e:
-        st.write("BROKEN ROW:", i)
-        st.write("VALUE:", repr(g))
-        st.write("ERROR:", e)
-        break
 
 # --- Build GeoDataFrames ---
 @st.cache_resource
@@ -50,17 +39,6 @@ def build_msr_gdf(_df):
 
 # @st.cache_resource
 def build_vbo_gdf(_df, col_name):
-
-    print("\n--- DEBUG GEOMETRIES ---")
-
-    for i, g in enumerate(_df[col_name]):
-        try:
-            wkt.loads(g)
-        except Exception as e:
-            print("BROKEN ROW:", i)
-            print("VALUE:", repr(g))
-            print("ERROR:", e)
-            break
     if _df[col_name].dtype == object and isinstance(_df[col_name].iloc[0], str):
         _df = _df[_df[col_name].notna()]
         _df = _df[_df[col_name].str.strip() != ""]
