@@ -30,23 +30,26 @@ if "MSRs" not in st.session_state:
 if "vbo_objects" not in st.session_state:
     st.session_state.vbo_objects = bg.get_sheet_dataframe("Objects", workbook)
 
-# --- Build GeoDataFrames ---
+
+
 @st.cache_resource
-def build_msr_gdf(_df):
-    if _df["geometry"].dtype == object and isinstance(_df["geometry"].iloc[0], str):
-        _df["geometry"] = _df["geometry"].apply(wkt.loads)
-    return gpd.GeoDataFrame(_df, geometry="geometry", crs="EPSG:28992")
+def build_gebruik_df(_df):
+    col_list = [
+        "owner_msr",
+        "jvb_industrie",
+        "jvb_logies",
+        "jvb_onderwijs",
+        "jvb_winkel",
+        "jvb_woon",
+        "jvb_kantoor_gezondheid",
+        "jvb_sport_bijeenkomst_overig"
+    ]
+    output_df = _df[col_list].copy()
+    return output_df
 
-# @st.cache_resource
-def build_vbo_gdf(_df, col_name):
-    if _df[col_name].dtype == object and isinstance(_df[col_name].iloc[0], str):
-        _df = _df[_df[col_name].notna()]
-        _df = _df[_df[col_name].str.strip() != ""]
-        _df[col_name] = _df[col_name].apply(wkt.loads)
-    return gpd.GeoDataFrame(_df, geometry=col_name, crs="EPSG:28992")
-
-msr_gdf = build_msr_gdf(st.session_state.MSRs)
-houses_gdf = build_vbo_gdf(st.session_state.vbo_objects, "vbo_points1")
+msr_gdf = bg.build_msr_gdf(st.session_state.MSRs)
+houses_gdf = bg.build_vbo_gdf(st.session_state.vbo_objects, "vbo_points1")
+gebruik_df = build_gebruik_df(st.session_state.vbo_objects)
 
 # --- Session state ---
 if "selected_id" not in st.session_state:
@@ -64,7 +67,7 @@ def build_base_map(_gdf):
         return marker;
     }
     """
-    coords = list(zip(gdf_wgs.geometry.y, gdf_wgs.geometry.x, gdf_wgs["ID"]))
+    coords = list(zip(gdf_wgs.geometry.y, gdf_wgs.geometry.x, gdf_wgs["owner_msr"]))
     FastMarkerCluster(coords, callback=callback).add_to(m)
     return m
 
@@ -120,7 +123,8 @@ with right_col:
         st.subheader(f"MSR {st.session_state.selected_id}")
 
         # Filter MSR row
-        msr_row = msr_gdf[msr_gdf["ID"].astype(str) == str(st.session_state.selected_id)]
+        msr_row = gebruik_df[gebruik_df["owner_msr"].astype(str) == str(st.session_state.selected_id)]
+
 
         if len(msr_row) > 0:
             # Display all columns as a simple table

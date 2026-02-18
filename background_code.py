@@ -7,11 +7,13 @@ import gspread
 
 import streamlit as st
 import pandas as pd
+import geopandas as gpd
 #import numpy as np
 #import matplotlib.pyplot as plt
 #import altair as alt
 
 from google.oauth2.service_account import Credentials
+from shapely import wkt
 #from datetime import timedelta
 #from PIL import Image
 #from io import BytesIO
@@ -62,6 +64,23 @@ class BackgroundCode:
         except gspread.WorksheetNotFound:
             st.warning(f"Worksheet '{sheet_name}' not found.")
             return pd.DataFrame()
+        
+    # --- Build GeoDataFrames ---
+    @staticmethod
+    @st.cache_resource
+    def build_msr_gdf(_df):
+        if _df["geometry"].dtype == object and isinstance(_df["geometry"].iloc[0], str):
+            _df["geometry"] = _df["geometry"].apply(wkt.loads)
+        return gpd.GeoDataFrame(_df, geometry="geometry", crs="EPSG:28992")
+
+    @staticmethod
+    @st.cache_resource
+    def build_vbo_gdf(_df, col_name):
+        if _df[col_name].dtype == object and isinstance(_df[col_name].iloc[0], str):
+            _df = _df[_df[col_name].notna()]
+            _df = _df[_df[col_name].str.strip() != ""]
+            _df[col_name] = _df[col_name].apply(wkt.loads)
+        return gpd.GeoDataFrame(_df, geometry=col_name, crs="EPSG:28992")
 
 
 if __name__ == "__main__":
