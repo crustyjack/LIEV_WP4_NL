@@ -83,6 +83,9 @@ class BackgroundCode:
         return gpd.GeoDataFrame(_df, geometry=col_name, crs="EPSG:28992")
     
     def profile_creator(self, df_profiles, df_MSRs, MSR_ID):
+        import inspect
+        st.write("Function called from:")
+        st.write(inspect.stack()[1])
         df_MSR_profile = pd.DataFrame()
         msr_row = df_MSRs[df_MSRs['owner_msr'] == MSR_ID]
         if len(msr_row.index) is not 1:
