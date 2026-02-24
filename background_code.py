@@ -81,7 +81,55 @@ class BackgroundCode:
             _df = _df[_df[col_name].str.strip() != ""]
             _df[col_name] = _df[col_name].apply(wkt.loads)
         return gpd.GeoDataFrame(_df, geometry=col_name, crs="EPSG:28992")
+    
+    def profile_creator(self, df_profiles, df_MSRs, MSR_ID):
+        df_MSR_profile = pd.DataFrame()
+        df_MSR_profile["DATUM_TIJDSTIP_2024"] = df_profiles["DATUM_TIJDSTIP_2024"].copy()
+        #df_MSR_profile["DATUM_TIJDSTIP_2023"] = df_profiles["DATUM_TIJDSTIP_2023"].copy()
+        df_MSR_profile["Woning [kW]"] = df_profiles["Woning_AZI"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Wo", df_MSRs)]*4
+        df_MSR_profile["Appartement [kW]"] = df_profiles["Appartement_AZI"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Ap", df_MSRs)]*4
+        df_MSR_profile["Winkel [kW]"] = df_profiles["Winkelfunctie"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Wi", df_MSRs)]*4
+        df_MSR_profile["Onderwijs [kW]"] = df_profiles["Onderwijsfunctie"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("On", df_MSRs)]*4
+        df_MSR_profile["Kantoor [kW]"] = df_profiles["Kantoorfunctie"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Ka", df_MSRs)]*4
+        df_MSR_profile["Gezondsheid [kW]"] = df_profiles["Gezondheidszorgfunctie"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Ge", df_MSRs)]*4
+        df_MSR_profile["Industrie [kW]"] = df_profiles["Industriefunctie"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("In", df_MSRs)]*4
+        df_MSR_profile["Overig [kW]"] = df_profiles["Overig"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Ov", df_MSRs)]*4
+        df_MSR_profile["Logies [kW]"] = df_profiles["Logiesfunctie"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Lo", df_MSRs)]*4
+        df_MSR_profile["Bijenkomst [kW]"] = df_profiles["Bijeenkomstfunctie"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Bi", df_MSRs)]*4
+        df_MSR_profile["Sport [kW]"] = df_profiles["Sportfunctie"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Sp", df_MSRs)]*4
+        df_MSR_profile["Zonnepanelen [kW]"] = -df_profiles["ZP normalised energy [kWh/kWh]"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("Zp", df_MSRs)]*0.88*4
+        df_MSR_profile["Oplaad punten [kW]"] = df_profiles["Charge point energy_normalised [kWh/kWh]"].copy()*df_MSRs[MSR_ID][self.building_type_to_num("CP", df_MSRs)]*12670*4 # 12670 is the average yearly usage per charging point
+                
+        df_MSR_profile["Woningen totaal [kW]"] = df_MSR_profile["Woning [kW]"] + df_MSR_profile["Appartement [kW]"]
+        df_MSR_profile["Utiliteit totaal [kW]"] = df_MSR_profile["Winkel [kW]"] + df_MSR_profile["Onderwijs [kW]"] + df_MSR_profile["Kantoor [kW]"] + df_MSR_profile["Gezondsheid [kW]"] + df_MSR_profile["Industrie [kW]"] + df_MSR_profile["Overig [kW]"] + df_MSR_profile["Logies [kW]"] + df_MSR_profile["Bijenkomst [kW]"] + df_MSR_profile["Sport [kW]"]
+        df_MSR_profile["MSR totaal [kW]"] = df_MSR_profile["Zonnepanelen [kW]"] + df_MSR_profile["Oplaad punten [kW]"] + df_MSR_profile["Woningen totaal [kW]"] + df_MSR_profile["Utiliteit totaal [kW]"]
 
+        df_MSR_profile["DATUM_TIJDSTIP_2024"] = pd.to_datetime(df_MSR_profile["DATUM_TIJDSTIP_2024"], dayfirst=True)
+
+        return df_MSR_profile
+    
+    def update_charge_strat(self, df, charge_strat, df_profiles, df_MSRs, MSR_name):
+        charge_profile_name = self.charge_profile_lookup(charge_strat)
+        df["Oplaad punten [kW]"] = df_profiles[charge_profile_name].copy()*df_MSRs[MSR_name][self.building_type_to_num("CP", df_MSRs)]*12670*4 
+        df["MSR totaal [kW]"] = df["Zonnepanelen [kW]"] + df["Oplaad punten [kW]"] + df["Woningen totaal [kW]"] + df["Utiliteit totaal [kW]"]
+
+        return df
+
+    def charge_profile_lookup(self, charge_strat):
+        
+        if charge_strat == "Regular on-demand charging":
+            prof_name = "Charge point energy_normalised [kWh/kWh]"
+        
+        if charge_strat == "Grid-aware smart charging":
+            prof_name = "Elaad_net_bewust_norm. [kWh/kWh]"
+
+        if charge_strat == "Capacity pooling":
+            prof_name = "Elaad_cap_pooling_norm. [kWh/kWh]"
+
+        if charge_strat == "V2G":
+            prof_name = "Elaad_V2G_norm. [kWh/kWh]"
+
+        return prof_name
 
 if __name__ == "__main__":
     loaded = load_Gsheets()

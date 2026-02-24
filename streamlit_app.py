@@ -30,7 +30,8 @@ if "MSRs" not in st.session_state:
 if "vbo_objects" not in st.session_state:
     st.session_state.vbo_objects = bg.get_sheet_dataframe("Objects", workbook)
 
-
+if "profielen" not in st.session_state:
+    st.session_state.profielen = bg.get_sheet_dataframe("Profielen", workbook)
 
 @st.cache_resource
 def build_gebruik_df(_df):
@@ -49,6 +50,7 @@ def build_gebruik_df(_df):
 
 msr_gdf = bg.build_msr_gdf(st.session_state.MSRs)
 houses_gdf = bg.build_vbo_gdf(st.session_state.vbo_objects, "vbo_points1")
+profielen_df = st.session_state.profielen
 gebruik_df = build_gebruik_df(st.session_state.vbo_objects)
 
 # --- Session state ---
@@ -124,13 +126,107 @@ with right_col:
 
         # Filter MSR row
         msr_row = gebruik_df[gebruik_df["owner_msr"].astype(str) == str(st.session_state.selected_id)]
-
+        #st.dataframe(msr_row)
 
         if len(msr_row) > 0:
             # Display all columns as a simple table
-            # Drop geometry column since it's not human readable
-            display_data = msr_row.drop(columns="geometry").T
-            display_data.columns = ["Value"]
-            st.dataframe(display_data, use_container_width=True)
+            charge_strat = st.selectbox(
+                "Which charging strategy would you like to apply?",
+                ("Regular on-demand charging", "Grid-aware smart charging", "Capacity pooling", "V2G"))
+
+            #Accom_elect_perc = st.slider("What percentage of accomodation is fully electric?", 0, 100, 25)
+
+            #year = st.slider("What year would you like to model? - For now only impacts EV adoption", 2025, 2050, 2025)
+
+            EV_adoption_perc = st.slider("What percentage of EV adoption would you like to model?", 10, 100, 10)
+            #WP_adoption_perc = st.slider("What percentage of electrical heat pump adoption would you like to model?", 10, 100, 10)
+
+            df_output = bg.profile_creator(profielen_df, gebruik_df, st.session_state.selected_id)
+            df_output = bg.update_charge_strat(df_output, charge_strat, profielen_df, gebruik_df, st.session_state.selected_id)
+            df_output = bg.adjust_EV_profile(df_output, EV_adoption_perc, EV_factor=5)
+
+            #df_output = bg._map_2024_to_year(df_output, year)
+
+            if "min_max" not in st.session_state:
+                st.session_state.min_max = "-"
+
+            if st.button("Change date to day with highest peak load"):
+                date_max_power = df_output.loc[df_output["MSR totaal [kW]"].idxmax(), ("DATUM_TIJDSTIP_2024")]
+                st.session_state.date_max_power = date_max_power
+                st.session_state.min_max = "max"
+
+            if st.button("Change date to day with least (or most negative) peak load"):
+                date_min_power = df_output.loc[df_output["MSR totaal [kW]"].idxmin(), ("DATUM_TIJDSTIP_2024")]
+                st.session_state.date_min_power = date_min_power
+                st.session_state.min_max = "min"
+            #st.write("You are modelling ", MSR_name, " MSR", "with an fully electric home adoption rate of ", Accom_elect_perc, "%, in the year ", year, ".")
+
+            min_date = df_output["DATUM_TIJDSTIP_2024"].min().date()
+            max_date = df_output["DATUM_TIJDSTIP_2024"].max().date()
+
+            default_start = min_date
+
+            if "min_max" in st.session_state:
+                if st.session_state.min_max == "max" and "date_max_power" in st.session_state:
+                    default_start = st.session_state.date_max_power
+                elif st.session_state.min_max == "min" and "date_min_power" in st.session_state:
+                    default_start = st.session_state.date_min_power
+
+            if isinstance(default_start, pd.Timestamp):
+                default_start = default_start.date()
+
+            default_start = min(max(default_start, min_date), max_date)
+
+            start_date = st.date_input("Start date", default_start, min_value=min_date, max_value=max_date)
+            end_date = st.date_input("End date", start_date + timedelta(days=1), min_value=start_date + timedelta(days=1), max_value=max_date)
+
+            date_range = (end_date - start_date).days
+
+            # Initialize session_state flags
+            if "awaiting_confirmation" not in st.session_state:
+                st.session_state.awaiting_confirmation = False
+
+            # ---- MAIN LOGIC ----
+            if date_range <= 10:
+                # short range → run immediately
+                bg.prepare_plot_df(start_date, end_date, df_output, MSR_name, df_MSRs_measured)
+
+            else:
+                # long range → require confirmation
+                if not st.session_state.awaiting_confirmation:
+                    st.warning(f"You selected a long date range: {date_range} days.")
+                    st.info("This may be slow. Do you want to continue?")
+                    if st.button("Yes, continue"):
+                        st.session_state.awaiting_confirmation = True
+                    else:
+                        st.stop()  # Avoid running anything else
+                if st.session_state.awaiting_confirmation:
+                    bg.prepare_plot_df(start_date, end_date, df_output, MSR_name, df_MSRs_measured)
+                    st.session_state.awaiting_confirmation = False
+
+            plot_placeholder = st.empty()   # chart will appear BELOW this
+
+            # ---- INIT SESSION STATE ----
+            if "df_plot_data" not in st.session_state:
+                st.session_state["df_plot_data"] = None
+
+            # ---- BUTTON (always above the plot) ----
+            #if st.button("Update plot"):
+                #bg.prepare_plot_df(start_date, end_date, df_output, MSR_name, df_MSRs_measured) # not sure what this does
+
+            bg.prepare_plot_df(start_date, end_date, df_output, MSR_name, df_MSRs_measured) # not sure what this does
+
+            # ---- SHOW PLOT (if exists) ----
+            plot_placeholder = st.empty()   # <--- optional: ensure placeholder exists early
+
+            if st.session_state["df_plot_data"] is not None:
+                #plot_placeholder.line_chart(st.session_state["df_plot_data"])
+                bg.plot_df_with_dashed_lines(st.session_state["df_plot_data"], plot_placeholder)
+            else:
+                st.write("No plot generated yet.")
+
+            HvA_logo_url = "https://lectorenplatformleve.nl/wp-content/uploads/2021/11/HvA.jpg"
+            st.image(bg.image_converter(HvA_logo_url, 255, 255, 255, 255, 200))
+
     else:
         st.info("👈 Click an MSR point on the map to see details here.")
