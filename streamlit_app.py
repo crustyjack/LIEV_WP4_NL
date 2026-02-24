@@ -142,8 +142,8 @@ with right_col:
             #WP_adoption_perc = st.slider("What percentage of electrical heat pump adoption would you like to model?", 10, 100, 10)
 
             df_output = bg.profile_creator(profielen_df, gebruik_df, st.session_state.selected_id)
-            #df_output = bg.update_charge_strat(df_output, charge_strat, profielen_df, gebruik_df, st.session_state.selected_id)
-            #df_output = bg.adjust_EV_profile(df_output, EV_adoption_perc, EV_factor=5)
+            df_output = bg.update_charge_strat(df_output, charge_strat, profielen_df, gebruik_df, st.session_state.selected_id)
+            df_output = bg.adjust_EV_profile(df_output, EV_adoption_perc, EV_factor=5)
 
             #df_output = bg._map_2024_to_year(df_output, year)
 
