@@ -1,11 +1,15 @@
 import folium
 import background_code
 import streamlit as st
-import geopandas as gpd
+import pandas as pd
+#import geopandas as gpd
 
-from shapely import wkt
+#from shapely import wkt
+from datetime import timedelta, datetime
 from streamlit_folium import st_folium
 from folium.plugins import FastMarkerCluster
+
+st.set_page_config(layout="wide")
 
 st.title("Modelling system for all medium voltage stations in NL")
 st.write("Please select the MSR you would like to analyse.")
@@ -120,9 +124,12 @@ with left_col:
         else:
             st.warning("No houses found for this MSR.")
 
+    HvA_logo_url = "https://lectorenplatformleve.nl/wp-content/uploads/2021/11/HvA.jpg"
+    st.image(bg.image_converter(HvA_logo_url, 255, 255, 255, 255, 200))
+
 with right_col:
     if st.session_state.selected_id:
-        st.subheader(f"MSR {st.session_state.selected_id}")
+        st.subheader(f"MSR: {st.session_state.selected_id}")
 
         # Filter MSR row
         msr_row = gebruik_df[gebruik_df["owner_msr"].astype(str) == str(st.session_state.selected_id)]
@@ -141,9 +148,10 @@ with right_col:
             EV_adoption_perc = st.slider("What percentage of EV adoption would you like to model?", 10, 100, 10)
             #WP_adoption_perc = st.slider("What percentage of electrical heat pump adoption would you like to model?", 10, 100, 10)
 
-            df_output = bg.profile_creator(profielen_df, gebruik_df, st.session_state.selected_id)
-            df_output = bg.update_charge_strat(df_output, charge_strat, profielen_df, gebruik_df, st.session_state.selected_id)
-            df_output = bg.adjust_EV_profile(df_output, EV_adoption_perc, EV_factor=5)
+            df_output = bg.profile_creator(profielen_df, msr_row)
+            #st.dataframe(df_output)
+            #df_output = bg.update_charge_strat(df_output, charge_strat, profielen_df, gebruik_df, st.session_state.selected_id)
+            #df_output = bg.adjust_EV_profile(df_output, EV_adoption_perc, EV_factor=5)
 
             #df_output = bg._map_2024_to_year(df_output, year)
 
@@ -189,7 +197,7 @@ with right_col:
             # ---- MAIN LOGIC ----
             if date_range <= 10:
                 # short range → run immediately
-                bg.prepare_plot_df(start_date, end_date, df_output, MSR_name, df_MSRs_measured)
+                bg.prepare_plot_df(start_date, end_date, df_output)
 
             else:
                 # long range → require confirmation
@@ -201,7 +209,7 @@ with right_col:
                     else:
                         st.stop()  # Avoid running anything else
                 if st.session_state.awaiting_confirmation:
-                    bg.prepare_plot_df(start_date, end_date, df_output, MSR_name, df_MSRs_measured)
+                    bg.prepare_plot_df(start_date, end_date, df_output)
                     st.session_state.awaiting_confirmation = False
 
             plot_placeholder = st.empty()   # chart will appear BELOW this
@@ -214,7 +222,7 @@ with right_col:
             #if st.button("Update plot"):
                 #bg.prepare_plot_df(start_date, end_date, df_output, MSR_name, df_MSRs_measured) # not sure what this does
 
-            bg.prepare_plot_df(start_date, end_date, df_output, MSR_name, df_MSRs_measured) # not sure what this does
+            bg.prepare_plot_df(start_date, end_date, df_output) # not sure what this does
 
             # ---- SHOW PLOT (if exists) ----
             plot_placeholder = st.empty()   # <--- optional: ensure placeholder exists early
@@ -225,8 +233,7 @@ with right_col:
             else:
                 st.write("No plot generated yet.")
 
-            HvA_logo_url = "https://lectorenplatformleve.nl/wp-content/uploads/2021/11/HvA.jpg"
-            st.image(bg.image_converter(HvA_logo_url, 255, 255, 255, 255, 200))
+            
 
     else:
         st.info("👈 Click an MSR point on the map to see details here.")
