@@ -119,7 +119,7 @@ with left_col:
                         fill_opacity=0.8,
                     ).add_to(house_map)
 
-            st.subheader(f"Houses — MSR {st.session_state.selected_id}")
+            st.subheader(f"Buildings connect to MSR: {st.session_state.selected_id}")
             st_folium(house_map, width="100%", height=400, key="house_map")
         else:
             st.warning("No houses found for this MSR.")
