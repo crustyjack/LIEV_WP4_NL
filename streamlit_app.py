@@ -7,7 +7,7 @@ import pandas as pd
 #from shapely import wkt
 from datetime import timedelta, datetime
 from streamlit_folium import st_folium
-from folium.plugins import FastMarkerCluster
+
 
 st.set_page_config(layout="wide")
 
@@ -37,47 +37,16 @@ if "vbo_objects" not in st.session_state:
 if "profielen" not in st.session_state:
     st.session_state.profielen = bg.get_sheet_dataframe("Profielen", workbook)
 
-@st.cache_resource
-def build_gebruik_df(_df):
-    col_list = [
-        "owner_msr",
-        "jvb_industrie",
-        "jvb_logies",
-        "jvb_onderwijs",
-        "jvb_winkel",
-        "jvb_woon",
-        "jvb_kantoor_gezondheid",
-        "jvb_sport_bijeenkomst_overig"
-    ]
-    output_df = _df[col_list].copy()
-    return output_df
-
 msr_gdf = bg.build_msr_gdf(st.session_state.MSRs)
 houses_gdf = bg.build_vbo_gdf(st.session_state.vbo_objects, "vbo_points1")
 profielen_df = st.session_state.profielen
-gebruik_df = build_gebruik_df(st.session_state.vbo_objects)
+gebruik_df = bg.build_gebruik_df(st.session_state.vbo_objects)
 
 # --- Session state ---
 if "selected_id" not in st.session_state:
     st.session_state.selected_id = None
 
-# --- Build map fresh each run (not cached) ---
-def build_base_map(_gdf):
-    gdf_wgs = _gdf.to_crs(epsg=4326)
-    m = folium.Map(location=[gdf_wgs.geometry.y.mean(), gdf_wgs.geometry.x.mean()], zoom_start=7)
-    callback = """
-    function (row) {
-        var marker = L.marker(new L.LatLng(row[0], row[1]));
-        marker.bindPopup(String(row[2]));
-        marker.bindTooltip(String(row[2]));
-        return marker;
-    }
-    """
-    coords = list(zip(gdf_wgs.geometry.y, gdf_wgs.geometry.x, gdf_wgs["owner_msr"]))
-    FastMarkerCluster(coords, callback=callback).add_to(m)
-    return m
-
-m = build_base_map(msr_gdf)
+m = bg.build_base_map(msr_gdf)
 
 # --- Create grid layout ---
 left_col, right_col = st.columns([1, 1])  # map takes 2/3, data takes 1/3
@@ -107,7 +76,7 @@ with left_col:
                     selected_houses.geometry.centroid.y.mean(),
                     selected_houses.geometry.centroid.x.mean()
                 ],
-                zoom_start=14
+                zoom_start=17
             )
             for geom in selected_houses.geometry:
                 for point in geom.geoms:
@@ -124,12 +93,25 @@ with left_col:
         else:
             st.warning("No houses found for this MSR.")
 
-    HvA_logo_url = "https://lectorenplatformleve.nl/wp-content/uploads/2021/11/HvA.jpg"
+    #HvA_logo_url = "https://lectorenplatformleve.nl/wp-content/uploads/2021/11/HvA.jpg"
+    HvA_logo_url = "https://amsterdamgreencampus.nl/wp-content/uploads/2016/01/AmsUniOfAppSci.png"
     st.image(bg.image_converter(HvA_logo_url, 255, 255, 255, 255, 200))
 
 with right_col:
     if st.session_state.selected_id:
         st.subheader(f"MSR: {st.session_state.selected_id}")
+
+        st.write("Current selected_id:", st.session_state.selected_id)
+
+        # Input box
+        #new_id = st.text_input("Override selected_id")
+
+        # Button
+        #if st.button("Override"):
+        #    st.session_state.selected_id = new_id
+        #    st.success("selected_id updated!")
+
+        #st.write("Updated selected_id:", st.session_state.selected_id)
 
         # Filter MSR row
         msr_row = gebruik_df[gebruik_df["owner_msr"].astype(str) == str(st.session_state.selected_id)]
@@ -144,11 +126,10 @@ with right_col:
             #Accom_elect_perc = st.slider("What percentage of accomodation is fully electric?", 0, 100, 25)
 
             #year = st.slider("What year would you like to model? - For now only impacts EV adoption", 2025, 2050, 2025)
-
-            EV_adoption_perc = st.slider("What percentage of EV adoption would you like to model?", 10, 100, 10)
+            EV_adoption_perc = st.slider("What percentage of EV adoption would you like to model?", int(msr_row["percentage_evs_msr"].iloc[0]), 100, int(msr_row["percentage_evs_msr"].iloc[0]))
             #WP_adoption_perc = st.slider("What percentage of electrical heat pump adoption would you like to model?", 10, 100, 10)
 
-            df_output = bg.profile_creator(profielen_df, msr_row)
+            df_output = bg.profile_creator(profielen_df, msr_row, EV_adoption_perc)
             #st.dataframe(df_output)
             #df_output = bg.update_charge_strat(df_output, charge_strat, profielen_df, gebruik_df, st.session_state.selected_id)
             #df_output = bg.adjust_EV_profile(df_output, EV_adoption_perc, EV_factor=5)

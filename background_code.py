@@ -3,7 +3,7 @@
 
 import gspread
 import requests
-#import folium
+import folium
 
 import altair as alt
 import streamlit as st
@@ -18,6 +18,7 @@ from shapely import wkt
 #from datetime import timedelta
 from PIL import Image
 from io import BytesIO
+from folium.plugins import FastMarkerCluster
 
 class BackgroundCode:
 
@@ -69,6 +70,25 @@ class BackgroundCode:
     # --- Build GeoDataFrames ---
     @staticmethod
     @st.cache_resource
+    def build_gebruik_df(_df):
+        col_list = [
+            "owner_msr",
+            "jvb_industrie",
+            "jvb_logies",
+            "jvb_onderwijs",
+            "jvb_winkel",
+            "jvb_woon",
+            "jvb_kantoor_gezondheid",
+            "jvb_sport_bijeenkomst_overig",
+            "percentage_evs_msr",
+            "aantal_personenautos_msr"
+        ]
+        output_df = _df[col_list].copy()
+        return output_df
+
+
+    @staticmethod
+    @st.cache_resource
     def build_msr_gdf(_df):
         if _df["geometry"].dtype == object and isinstance(_df["geometry"].iloc[0], str):
             _df["geometry"] = _df["geometry"].apply(wkt.loads)
@@ -83,7 +103,23 @@ class BackgroundCode:
             _df[col_name] = _df[col_name].apply(wkt.loads)
         return gpd.GeoDataFrame(_df, geometry=col_name, crs="EPSG:28992")
     
-    def profile_creator(self, df_profiles, msr_row):
+    # --- Build map fresh each run (not cached) ---
+    def build_base_map(self, _gdf):
+        gdf_wgs = _gdf.to_crs(epsg=4326)
+        m = folium.Map(location=[gdf_wgs.geometry.y.mean(), gdf_wgs.geometry.x.mean()], zoom_start=7)
+        callback = """
+        function (row) {
+            var marker = L.marker(new L.LatLng(row[0], row[1]));
+            marker.bindPopup(String(row[2]));
+            marker.bindTooltip(String(row[2]));
+            return marker;
+        }
+        """
+        coords = list(zip(gdf_wgs.geometry.y, gdf_wgs.geometry.x, gdf_wgs["owner_msr"]))
+        FastMarkerCluster(coords, callback=callback).add_to(m)
+        return m
+    
+    def profile_creator(self, df_profiles, msr_row, EV_adoption_perc):
         #import inspect
         #st.write("Function called from:")
         #st.write(inspect.stack()[1])
@@ -97,12 +133,16 @@ class BackgroundCode:
 
         df_MSR_profile["Woningen totaal [kW]"] = df_profiles["jvb_woon"].copy()*msr_row["jvb_woon"].iloc[0]*4
         df_MSR_profile["Winkel [kW]"] = df_profiles["jvb_winkel"].copy()*msr_row["jvb_winkel"].iloc[0]*4
-        
+        df_MSR_profile["Onderwijs [kW]"] = df_profiles["jvb_onderwijs"].copy()*msr_row["jvb_onderwijs"].iloc[0]*4
+        df_MSR_profile["Logies [kW]"] = df_profiles["jvb_logies"].copy()*msr_row["jvb_logies"].iloc[0]*4
+        df_MSR_profile["Industrie [kW]"] = df_profiles["jvb_industrie"].copy()*msr_row["jvb_industrie"].iloc[0]*4
+        df_MSR_profile["Kantoor_Gezondsheid [kW]"] = df_profiles["jvb_kantoor_gezondheid"].copy()*msr_row["jvb_kantoor_gezondheid"].iloc[0]*4
+        df_MSR_profile["Sport_Bijeenkomst_Overig [kW]"] = df_profiles["jvb_sport_bijeenkomst_overig"].copy()*msr_row["jvb_sport_bijeenkomst_overig"].iloc[0]*4
 
-
-        #df_MSR_profile["Woningen totaal [kW]"] = df_MSR_profile["Woning [kW]"] + df_MSR_profile["Appartement [kW]"]
-        df_MSR_profile["Utiliteit totaal [kW]"] = df_MSR_profile["Winkel [kW]"] #+ df_MSR_profile["Onderwijs [kW]"] + df_MSR_profile["Kantoor [kW]"] + df_MSR_profile["Gezondsheid [kW]"] + df_MSR_profile["Industrie [kW]"] + df_MSR_profile["Overig [kW]"] + df_MSR_profile["Logies [kW]"] + df_MSR_profile["Bijenkomst [kW]"] + df_MSR_profile["Sport [kW]"]
+        # EV and solar
+        df_MSR_profile["EV oplaad [kW]"] = df_profiles["Elaad_normal_norm. [kWh/kWh]"].copy()*msr_row["aantal_personenautos_msr"].iloc[0]*EV_adoption_perc*3500*4 # (KWh per EV per year)
         
+        df_MSR_profile["Utiliteit totaal [kW]"] = df_MSR_profile["Winkel [kW]"] + df_MSR_profile["Onderwijs [kW]"] + df_MSR_profile["Kantoor_Gezondsheid [kW]"] + df_MSR_profile["Industrie [kW]"] + df_MSR_profile["Sport_Bijeenkomst_Overig [kW]"] + df_MSR_profile["Logies [kW]"]
         
         df_MSR_profile["MSR totaal [kW]"] = df_MSR_profile["Woningen totaal [kW]"] + df_MSR_profile["Utiliteit totaal [kW]"] # + df_MSR_profile["Zonnepanelen [kW]"] + df_MSR_profile["Oplaad punten [kW]"]
 
@@ -146,7 +186,7 @@ class BackgroundCode:
             "Woningen totaal [kW]",
             "Utiliteit totaal [kW]",
             #"Zonnepanelen [kW]",
-            #"Oplaad punten [kW]",
+            "EV oplaad [kW]",
             "MSR totaal [kW]"
         ]
         
@@ -228,7 +268,15 @@ class BackgroundCode:
         placeholder.altair_chart(chart, width='stretch')
 
     def image_converter(self, URL, R, G, B, A, width=None):
-        response = requests.get(URL)
+        headers = {
+            "User-Agent": "MyStreamlitApp/1.0 (your.email@example.com)"
+        }
+        response = requests.get(URL, headers=headers)
+
+        #st.write(response.status_code)
+        #st.write(response.headers["Content-Type"])
+        #st.write(response.content[:200])
+
         image = Image.open(BytesIO(response.content)).convert("RGBA")
         background = Image.new("RGBA", image.size, (R, G, B, A))
         background.paste(image, (0,0), image)
