@@ -95,7 +95,11 @@ with left_col:
 
     #HvA_logo_url = "https://lectorenplatformleve.nl/wp-content/uploads/2021/11/HvA.jpg"
     HvA_logo_url = "https://amsterdamgreencampus.nl/wp-content/uploads/2016/01/AmsUniOfAppSci.png"
-    st.image(bg.image_converter(HvA_logo_url, 255, 255, 255, 255, 200))
+
+    img = bg.image_converter(HvA_logo_url, 255, 255, 255, 255, 200)
+
+    if img is not None:
+        st.image(img)
 
 with right_col:
     if st.session_state.selected_id:

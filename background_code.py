@@ -266,29 +266,29 @@ class BackgroundCode:
 
         # Render chart
         placeholder.altair_chart(chart, width='stretch')
+        
+    @staticmethod
+    @st.cache_resource
+    def image_converter(URL, R, G, B, A, width=None):
+        response = requests.get(URL)
+        
+        try:
+            image = Image.open(BytesIO(response.content)).convert("RGBA")
+            background = Image.new("RGBA", image.size, (R, G, B, A))
+            background.paste(image, (0,0), image)
+            final_image = background.convert("RGB")
 
-    def image_converter(self, URL, R, G, B, A, width=None):
-        headers = {
-            "User-Agent": "MyStreamlitApp/1.0 (your.email@example.com)"
-        }
-        response = requests.get(URL, headers=headers)
+            if width:
+                w, h = final_image.size
+                ratio = width / w
+                new_height = int(h * ratio)
+                final_image = final_image.resize((width, new_height), Image.LANCZOS)
 
-        #st.write(response.status_code)
-        #st.write(response.headers["Content-Type"])
-        #st.write(response.content[:200])
+            return final_image
+        
+        except:
+            return None
 
-        image = Image.open(BytesIO(response.content)).convert("RGBA")
-        background = Image.new("RGBA", image.size, (R, G, B, A))
-        background.paste(image, (0,0), image)
-        final_image = background.convert("RGB")
-
-        if width:
-            w, h = final_image.size
-            ratio = width / w
-            new_height = int(h * ratio)
-            final_image = final_image.resize((width, new_height), Image.LANCZOS)
-
-        return final_image
 
 if __name__ == "__main__":
     loaded = load_Gsheets()
