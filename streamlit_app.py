@@ -219,6 +219,30 @@ with right_col:
             else:
                 st.write("No plot generated yet.")
 
+            st.subheader("KPIs:")
+            
+            if charge_strat != "Regular on-demand charging":
+                peak_on_demand = df_output["MSR totaal_base profile [kW]"].max()
+                peak_selected_profile = df_output["MSR totaal [kW]"].max()
+
+                PAR_on_demand = df_output["MSR totaal_base profile [kW]"].max()/df_output["MSR totaal_base profile [kW]"].mean()
+                PAR_selected_profile = df_output["MSR totaal [kW]"].max()/df_output["MSR totaal [kW]"].mean()
+
+                st.write(f"Peak MSR power - on demand charging [kW]: {int(peak_on_demand)}")
+                st.write(f"Peak MSR power - selected charging profile [kW]: {int(peak_selected_profile)}")
+                st.write(f"Absolute peak reduction [kW]: {int(peak_on_demand - peak_selected_profile)}")
+
+                st.write(f"Peak-to-Average Ratio - on demand charging: {round(PAR_on_demand, 2)} %")
+                st.write(f"Peak-to-Average Ratio - selected charging profile: {round(PAR_selected_profile, 2)} %")
+                st.write(f"Peak-to-Average Ratio - difference: {round(PAR_on_demand-PAR_selected_profile, 2)} %")
+
+            else:
+                peak_on_demand = df_output["MSR totaal_base profile [kW]"].max()
+                PAR_on_demand = df_output["MSR totaal_base profile [kW]"].max()/df_output["MSR totaal_base profile [kW]"].mean()
+
+                st.write(f"Peak MSR power - on demand charging [kW]: {int(peak_on_demand)}")
+                st.write(f"Peak-to-Average Ratio - on demand charging: {round(PAR_on_demand, 2)} %")
+            #st.dataframe(df_output)
             
 
     else:
