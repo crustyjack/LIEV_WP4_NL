@@ -119,7 +119,7 @@ class BackgroundCode:
         FastMarkerCluster(coords, callback=callback).add_to(m)
         return m
     
-    def profile_creator(self, df_profiles, msr_row, EV_adoption_perc):
+    def profile_creator(self, df_profiles, msr_row, EV_adoption_perc, EV_jvb_per_auto):
         #import inspect
         #st.write("Function called from:")
         #st.write(inspect.stack()[1])
@@ -140,7 +140,7 @@ class BackgroundCode:
         df_MSR_profile["Sport_Bijeenkomst_Overig [kW]"] = df_profiles["jvb_sport_bijeenkomst_overig"].copy()*msr_row["jvb_sport_bijeenkomst_overig"].iloc[0]*4
 
         # EV and solar
-        df_MSR_profile["EV oplaad [kW]"] = df_profiles["Elaad_normal_norm. [kWh/kWh]"].copy()*msr_row["aantal_personenautos_msr"].iloc[0]*EV_adoption_perc/100*3500*4 # (KWh per EV per year)
+        df_MSR_profile["EV oplaad [kW]"] = df_profiles["Elaad_normal_norm. [kWh/kWh]"].copy()*msr_row["aantal_personenautos_msr"].iloc[0]*EV_adoption_perc/100*EV_jvb_per_auto*4 # (KWh per EV per year)
         
         df_MSR_profile["Utiliteit totaal [kW]"] = df_MSR_profile["Winkel [kW]"] + df_MSR_profile["Onderwijs [kW]"] + df_MSR_profile["Kantoor_Gezondsheid [kW]"] + df_MSR_profile["Industrie [kW]"] + df_MSR_profile["Sport_Bijeenkomst_Overig [kW]"] + df_MSR_profile["Logies [kW]"]
         
@@ -150,13 +150,15 @@ class BackgroundCode:
 
         return df_MSR_profile
     
-    def update_charge_strat(self, df, charge_strat, df_profiles, df_MSRs, MSR_ID):
+    def update_charge_strat(self, df, charge_strat, df_profiles, msr_row, EV_adoption_perc, EV_jvb_per_auto):
         charge_profile_name = self.charge_profile_lookup(charge_strat)
-        msr_row = df_MSRs[df_MSRs['owner_msr'] == MSR_ID]
+
+        #msr_row = df_MSRs[df_MSRs['owner_msr'] == MSR_ID]
 
         # this data still to be added to gsheets
         #df["Oplaad punten [kW]"] = df_profiles[charge_profile_name].copy()*msr_row["jvb_EV"]*4
-        df["MSR totaal [kW]"] = df["Zonnepanelen [kW]"] + df["Oplaad punten [kW]"] + df["Woningen totaal [kW]"] + df["Utiliteit totaal [kW]"]
+        df["EV oplaad [kW]"] = df_profiles[charge_profile_name].copy()*msr_row["aantal_personenautos_msr"].iloc[0]*EV_adoption_perc/100*EV_jvb_per_auto*4
+        df["MSR totaal [kW]"] = df["Woningen totaal [kW]"] + df["Utiliteit totaal [kW]"] + df["EV oplaad [kW]"]
 
         return df
 
