@@ -130,8 +130,10 @@ with right_col:
 
             #Accom_elect_perc = st.slider("What percentage of accomodation is fully electric?", 0, 100, 25)
 
+            EV_perc_current = int(msr_row["percentage_evs_msr"].iloc[0])
+
             #year = st.slider("What year would you like to model? - For now only impacts EV adoption", 2025, 2050, 2025)
-            EV_adoption_perc = st.slider("What percentage of EV adoption would you like to model?", int(msr_row["percentage_evs_msr"].iloc[0]), 100, int(msr_row["percentage_evs_msr"].iloc[0]))
+            EV_adoption_perc = st.slider("What percentage of EV adoption would you like to model?", EV_perc_current, 100, EV_perc_current)
             #WP_adoption_perc = st.slider("What percentage of electrical heat pump adoption would you like to model?", 10, 100, 10)
 
             df_output = bg.profile_creator(profielen_df, msr_row, EV_adoption_perc, EV_jvb_per_auto)
@@ -220,9 +222,13 @@ with right_col:
                 st.write("No plot generated yet.")
 
             st.subheader("KPIs:")
+            num_autos = int(msr_row["aantal_personenautos_msr"].iloc[0])
+            st.write(f"Estimated inhabitants of this MSR: tbc")
+            st.write(f"Estimated cars with this MSR area: {num_autos}, of which currently around {EV_perc_current} % are EVs")
             
             if charge_strat != "Regular on-demand charging":
                 peak_on_demand = df_output["MSR totaal_base profile [kW]"].max()
+                #DT_peak_on_demand = df_output[df_output["MSR totaal_base profile [kW]"] == peak_on_demand]["DATUM_TIJDSTIP_2024"]
                 peak_selected_profile = df_output["MSR totaal [kW]"].max()
 
                 PAR_on_demand = df_output["MSR totaal_base profile [kW]"].max()/df_output["MSR totaal_base profile [kW]"].mean()

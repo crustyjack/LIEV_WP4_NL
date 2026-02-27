@@ -166,7 +166,8 @@ class BackgroundCode:
     def charge_profile_lookup(self, charge_strat):
         
         if charge_strat == "Regular on-demand charging":
-            prof_name = "Charge point energy_normalised [kWh/kWh]"
+            #prof_name = "Charge point energy_normalised [kWh/kWh]"
+            prof_name = "Elaad_normal_norm. [kWh/kWh]"
         
         if charge_strat == "Grid-aware smart charging":
             prof_name = "Elaad_net_bewust_norm. [kWh/kWh]"
