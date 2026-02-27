@@ -140,7 +140,7 @@ class BackgroundCode:
         df_MSR_profile["Sport_Bijeenkomst_Overig [kW]"] = df_profiles["jvb_sport_bijeenkomst_overig"].copy()*msr_row["jvb_sport_bijeenkomst_overig"].iloc[0]*4
 
         # EV and solar
-        df_MSR_profile["EV oplaad [kW]"] = df_profiles["Elaad_normal_norm. [kWh/kWh]"].copy()*msr_row["aantal_personenautos_msr"].iloc[0]*EV_adoption_perc*3500*4 # (KWh per EV per year)
+        df_MSR_profile["EV oplaad [kW]"] = df_profiles["Elaad_normal_norm. [kWh/kWh]"].copy()*msr_row["aantal_personenautos_msr"].iloc[0]*EV_adoption_perc/100*3500*4 # (KWh per EV per year)
         
         df_MSR_profile["Utiliteit totaal [kW]"] = df_MSR_profile["Winkel [kW]"] + df_MSR_profile["Onderwijs [kW]"] + df_MSR_profile["Kantoor_Gezondsheid [kW]"] + df_MSR_profile["Industrie [kW]"] + df_MSR_profile["Sport_Bijeenkomst_Overig [kW]"] + df_MSR_profile["Logies [kW]"]
         
@@ -194,11 +194,11 @@ class BackgroundCode:
         st.session_state["df_plot_data"] = df_slice.set_index("DATUM_TIJDSTIP_2024")[cols_to_plot]
 
     def plot_df_with_dashed_lines(
-            self, 
+            self,
             df,
             placeholder,
             dashed_series = [
-                #"Oplaad punten [kW]",
+                "EV oplaad [kW]",
                 "Utiliteit totaal [kW]",
                 "Woningen totaal [kW]",
                 #"Zonnepanelen [kW]"
@@ -207,21 +207,29 @@ class BackgroundCode:
         if df is None or df.empty:
             placeholder.write("No data to plot.")
             return
-        
+        """
         label_map = {
-            "Oplaad punten [kW]" : "Public charging points",
+            "EV oplaad [kW]" : "Public charging points",
             "Utiliteit totaal [kW]": "Utility buildings",
             "Woningen totaal [kW]": "Accomodation buildings",
             "Zonnepanelen [kW]": "Solar panels"
         }
 
         dashed_series = [
-            #"Public charging points",
+            "Public charging points",
             "Utility buildings",
             "Accomodation buildings",
             #"Solar panels"
         ]
+        """
 
+        legend_order = [
+            "MSR totaal [kW]",
+            "Woningen totaal [kW]",
+            "Utiliteit totaal [kW]",
+            "EV oplaad [kW]",
+        ]
+        
         # Reset index safely
         df_reset = df.reset_index()
 
@@ -238,7 +246,7 @@ class BackgroundCode:
             value_name="value"
         )
 
-        df_long["series"] = df_long["series"].replace(label_map)
+        #df_long["series"] = df_long["series"].replace(label_map)
 
         # Build chart
         chart = (
@@ -247,7 +255,13 @@ class BackgroundCode:
             .encode(
                 x=alt.X(index_col + ":T", title="Date"),   # Temporal axis (date/time)
                 y=alt.Y("value:Q", title="Power [kW]"),
-                color=alt.Color("series:N", title=""),
+                #color=alt.Color("series:N", title="", sort=legend_order),
+                color=alt.Color(
+                    "series:N",
+                    title="",
+                    scale=alt.Scale(domain=legend_order),
+                    sort=legend_order
+                ),
                 strokeDash=alt.condition(
                     alt.FieldOneOfPredicate(field="series", oneOf=dashed_series),
                     alt.value([4, 4]),       # dashed style
@@ -266,7 +280,7 @@ class BackgroundCode:
 
         # Render chart
         placeholder.altair_chart(chart, width='stretch')
-        
+
     @staticmethod
     @st.cache_resource
     def image_converter(URL, R, G, B, A, width=None):
