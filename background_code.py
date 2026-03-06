@@ -86,13 +86,16 @@ class BackgroundCode:
         output_df = _df[col_list].copy()
         return output_df
 
+    
 
     @staticmethod
     @st.cache_resource
     def build_msr_gdf(_df):
-        if _df["geometry"].dtype == object and isinstance(_df["geometry"].iloc[0], str):
-            _df["geometry"] = _df["geometry"].apply(wkt.loads)
-        return gpd.GeoDataFrame(_df, geometry="geometry", crs="EPSG:28992")
+       
+        if _df["msr_coordinates"].dtype == object and isinstance(_df["msr_coordinates"].iloc[0], str):
+            #_df["msr_coordinates"] = _df["msr_coordinates"].apply(wkt.loads)
+            _df["msr_coordinates"] = _df["msr_coordinates"].apply(wkt.loads)
+        return gpd.GeoDataFrame(_df, geometry="msr_coordinates", crs="EPSG:28992")
 
     @staticmethod
     @st.cache_resource
@@ -306,7 +309,46 @@ class BackgroundCode:
         
         except:
             return None
+        
+    def load_room_objects(self, room_id):
+        """Load objects associated with a specific voltage room"""
+        try:
+            conn = st.connection("postgresql", type="sql")
+    
+            # Perform query.
+            objects_df = conn.query('SELECT * FROM Objectsmichael;', ttl="10m")
 
+            # Handle the unnamed index column if it exists
+            if '' in objects_df.columns or 'Unnamed: 0' in objects_df.columns:
+                objects_df = objects_df.drop(columns=[col for col in objects_df.columns if col == '' or col.startswith('Unnamed')])
+            return objects_df
+        except Exception as e:
+            st.warning(f"Could not load objects for room {room_id}: {e}")
+            return None
+
+    def load_room_objects2(self, selected_msr):
+        """Load objects associated with a specific voltage room"""
+        
+        conn = st.connection("postgresql", type="sql")
+
+        objects_df = conn.query(
+            """
+            SELECT *
+            FROM "ObjectsMichael"
+            WHERE owner_msr = :msr
+            """,
+            params={"msr": selected_msr},
+            ttl="10m"
+        )
+
+        # Perform query.
+        #objects_df = conn.query('SELECT * FROM "ObjectsMichael";', ttl="10m")
+
+        # Handle the unnamed index column if it exists
+        if '' in objects_df.columns or 'Unnamed: 0' in objects_df.columns:
+            objects_df = objects_df.drop(columns=[col for col in objects_df.columns if col == '' or col.startswith('Unnamed')])
+        return objects_df
+        
 
 if __name__ == "__main__":
     loaded = load_Gsheets()

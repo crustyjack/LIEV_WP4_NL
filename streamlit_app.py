@@ -38,7 +38,7 @@ if "profielen" not in st.session_state:
     st.session_state.profielen = bg.get_sheet_dataframe("Profielen", workbook)
 
 msr_gdf = bg.build_msr_gdf(st.session_state.MSRs)
-houses_gdf = bg.build_vbo_gdf(st.session_state.vbo_objects, "vbo_points1")
+houses_gdf = bg.build_vbo_gdf(st.session_state.vbo_objects, "vbo_points")
 profielen_df = st.session_state.profielen
 gebruik_df = bg.build_gebruik_df(st.session_state.vbo_objects)
 
@@ -67,8 +67,12 @@ with left_col:
     # --- House map ---
     if st.session_state.selected_id:
         selected_houses = houses_gdf[
-            houses_gdf["owner_msr"].astype(str) == str(st.session_state.selected_id)
+            houses_gdf["owner_msr"].astype(int).astype(str) == str(st.session_state.selected_id)
         ].to_crs(epsg=4326)
+
+        #st.dataframe(selected_houses)
+        #st.write(len(selected_houses))
+        #st.write(str(st.session_state.selected_id))
 
         if len(selected_houses) > 0:
             house_map = folium.Map(
@@ -118,9 +122,9 @@ with right_col:
         #st.write("Updated selected_id:", st.session_state.selected_id)
 
         # Filter MSR row
-        msr_row = gebruik_df[gebruik_df["owner_msr"].astype(str) == str(st.session_state.selected_id)]
+        msr_row = gebruik_df[gebruik_df["owner_msr"].astype(int).astype(str) == str(st.session_state.selected_id)]
         EV_jvb_per_auto = 3500
-        #st.dataframe(msr_row)
+        st.dataframe(msr_row)
 
         if len(msr_row) > 0:
             # Display all columns as a simple table
@@ -249,6 +253,9 @@ with right_col:
                 st.write(f"Peak MSR power - on demand charging [kW]: {int(peak_on_demand)}")
                 st.write(f"Peak-to-Average Ratio - on demand charging: {round(PAR_on_demand, 2)} %")
             #st.dataframe(df_output)
+
+            SQL_df = bg.load_room_objects2(st.session_state.selected_id)
+            st.dataframe(SQL_df)
             
 
     else:
