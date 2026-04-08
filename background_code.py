@@ -100,7 +100,7 @@ class BackgroundCode:
                     return wkt.loads(val)
                 except Exception:
                     # log invalid WKT if needed
-                    print(f"Invalid WKT skipped: {val}")
+                    st.write(f"Invalid WKT skipped: {val}")
                     return None
 
             _df["msr_coordinates"] = _df["msr_coordinates"].apply(safe_wkt_load)
