@@ -122,11 +122,34 @@ class BackgroundCode:
 
     @staticmethod
     @st.cache_resource
-    def build_vbo_gdf(_df, col_name):
-        if _df[col_name].dtype == object and isinstance(_df[col_name].iloc[0], str):
-            _df = _df[_df[col_name].notna()]
-            _df = _df[_df[col_name].str.strip() != ""]
-            _df[col_name] = _df[col_name].apply(wkt.loads)
+    
+    def build_vbo_gdf(_df: pd.DataFrame, col_name: str) -> gpd.GeoDataFrame:
+        
+        def to_geometry(val):
+            if pd.isna(val) or val.strip() == "":
+                return None
+            # Try WKT
+            if isinstance(val, str):
+                try:
+                    return wkt.loads(val)
+                except Exception:
+                    # Try WKB hex
+                    try:
+                        return wkb.loads(val, hex=True)
+                    except Exception:
+                        print(f"Invalid geometry skipped: {val}")
+                        return None
+            # Already a Shapely geometry?
+            from shapely.geometry.base import BaseGeometry
+            if isinstance(val, BaseGeometry):
+                return val
+            return None
+
+        _df[col_name] = _df[col_name].apply(to_geometry)
+        
+        # Optionally remove rows that couldn’t be converted
+        _df = _df[_df[col_name].notna()]
+
         return gpd.GeoDataFrame(_df, geometry=col_name, crs="EPSG:28992")
     
     # --- Build map fresh each run (not cached) ---
