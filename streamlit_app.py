@@ -254,9 +254,10 @@ with right_col:
                 st.write(f"Peak-to-Average Ratio - on demand charging: {round(PAR_on_demand, 2)} %")
             #st.dataframe(df_output)
 
-            #SQL_df = bg.load_room_objects2(st.session_state.selected_id)
-            #st.dataframe(SQL_df)
-            
+            #SQL_test = bg.test_connection()
+            SQL_df = bg.load_room_objects2(st.session_state.selected_id, "datamichael08april26")
+            st.dataframe(SQL_df)
+            #st.write(SQL_test)
 
     else:
         st.info("👈 Click an MSR point on the map to see details here.")

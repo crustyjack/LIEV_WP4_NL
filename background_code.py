@@ -326,15 +326,15 @@ class BackgroundCode:
             st.warning(f"Could not load objects for room {room_id}: {e}")
             return None
 
-    def load_room_objects2(self, selected_msr):
+    def load_room_objects2(self, selected_msr, table_name):
         """Load objects associated with a specific voltage room"""
         
         conn = st.connection("postgresql", type="sql")
 
         objects_df = conn.query(
-            """
+            f"""
             SELECT *
-            FROM "ObjectsMichael"
+            FROM {table_name}
             WHERE owner_msr = :msr
             """,
             params={"msr": selected_msr},
@@ -348,7 +348,19 @@ class BackgroundCode:
         if '' in objects_df.columns or 'Unnamed: 0' in objects_df.columns:
             objects_df = objects_df.drop(columns=[col for col in objects_df.columns if col == '' or col.startswith('Unnamed')])
         return objects_df
-        
+    
+    def test_connection(self):
 
+        conn = st.connection("postgresql", type="sql")
+
+        test_output = conn.query(
+            """
+            SELECT schemaname, tablename
+            FROM pg_tables
+            WHERE tablename ILIKE '%michael%';
+            """
+        )
+
+        return test_output
 if __name__ == "__main__":
     loaded = load_Gsheets()
