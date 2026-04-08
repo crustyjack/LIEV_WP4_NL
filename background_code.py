@@ -90,11 +90,22 @@ class BackgroundCode:
 
     @staticmethod
     @st.cache_resource
-    def build_msr_gdf(_df):
-       
-        if _df["msr_coordinates"].dtype == object and isinstance(_df["msr_coordinates"].iloc[0], str):
-            #_df["msr_coordinates"] = _df["msr_coordinates"].apply(wkt.loads)
-            _df["msr_coordinates"] = _df["msr_coordinates"].apply(wkt.loads)
+    def build_msr_gdf(_df: pd.DataFrame) -> gpd.GeoDataFrame:
+        # Only convert if column is object/string type
+        if _df["msr_coordinates"].dtype == object:
+            def safe_wkt_load(val):
+                if pd.isna(val):
+                    return None
+                try:
+                    return wkt.loads(val)
+                except Exception:
+                    # log invalid WKT if needed
+                    print(f"Invalid WKT skipped: {val}")
+                    return None
+
+            _df["msr_coordinates"] = _df["msr_coordinates"].apply(safe_wkt_load)
+
+        # Now create GeoDataFrame safely
         return gpd.GeoDataFrame(_df, geometry="msr_coordinates", crs="EPSG:28992")
 
     @staticmethod

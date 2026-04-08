@@ -63,7 +63,22 @@ with left_col:
     # --- Capture click ---
     if map_data.get("last_object_clicked_tooltip"):
         st.session_state.selected_id = map_data["last_object_clicked_tooltip"]
+    """
+    if "last_msr_id" not in st.session_state:
+        st.session_state.last_msr_id = None
+        st.session_state.cached_df = None
 
+    current_id = st.session_state.get("selected_id")
+
+    if current_id != st.session_state.last_msr_id:
+        st.session_state.cached_df = bg.load_room_objects2(
+            current_id,
+            "datamichael08april26"
+        )
+        st.session_state.last_msr_id = current_id
+
+    st.dataframe(st.session_state.cached_df)
+    """
     # --- House map ---
     if st.session_state.selected_id:
         selected_houses = houses_gdf[
@@ -255,8 +270,8 @@ with right_col:
             #st.dataframe(df_output)
 
             #SQL_test = bg.test_connection()
-            SQL_df = bg.load_room_objects2(st.session_state.selected_id, "datamichael08april26")
-            st.dataframe(SQL_df)
+            #SQL_df = bg.load_room_objects2(st.session_state.selected_id, "datamichael08april26")
+            #st.dataframe(SQL_df)
             #st.write(SQL_test)
 
     else:
