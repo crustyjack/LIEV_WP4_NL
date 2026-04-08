@@ -91,21 +91,33 @@ class BackgroundCode:
     @staticmethod
     @st.cache_resource
     def build_msr_gdf(_df: pd.DataFrame) -> gpd.GeoDataFrame:
-        # Only convert if column is object/string type
-        if _df["msr_coordinates"].dtype == object:
-            def safe_wkt_load(val):
-                if pd.isna(val):
-                    return None
+
+        def to_geometry(val):
+            if pd.isna(val) or val == "":
+                return None
+            # Try WKT first
+            if isinstance(val, str):
                 try:
                     return wkt.loads(val)
                 except Exception:
-                    # log invalid WKT if needed
-                    st.write(f"Invalid WKT skipped: {val}")
+                    pass
+                # Try WKB hex string
+                try:
+                    return wkb.loads(val, hex=True)
+                except Exception:
+                    print(f"Invalid geometry skipped: {val}")
                     return None
+            # Already a Shapely geometry?
+            from shapely.geometry.base import BaseGeometry
+            if isinstance(val, BaseGeometry):
+                return val
+            return None
 
-            _df["msr_coordinates"] = _df["msr_coordinates"].apply(safe_wkt_load)
+        _df["msr_coordinates"] = _df["msr_coordinates"].apply(to_geometry)
 
-        # Now create GeoDataFrame safely
+        # Filter out rows that couldn’t be converted, optional
+        #_df = _df[_df["msr_coordinates"].notna()]
+
         return gpd.GeoDataFrame(_df, geometry="msr_coordinates", crs="EPSG:28992")
 
     @staticmethod
