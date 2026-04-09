@@ -5,3 +5,4 @@ shapely
 folium
 streamlit_folium
 sqlalchemy
+psycopg2
