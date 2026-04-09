@@ -14,7 +14,7 @@ import geopandas as gpd
 
 
 from google.oauth2.service_account import Credentials
-from shapely import wkt
+from shapely import wkt, wkb
 #from datetime import timedelta
 from PIL import Image
 from io import BytesIO

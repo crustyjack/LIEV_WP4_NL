@@ -1,10 +1,11 @@
 import folium
+import codecs
 import background_code
 import streamlit as st
 import pandas as pd
-#import geopandas as gpd
+import geopandas as gpd
 
-#from shapely import wkt
+from shapely import wkb
 from datetime import timedelta, datetime
 from streamlit_folium import st_folium
 
@@ -38,7 +39,7 @@ if "profielen" not in st.session_state:
     st.session_state.profielen = bg.get_sheet_dataframe("Profielen", workbook)
 
 msr_gdf = bg.build_msr_gdf(st.session_state.MSRs)
-houses_gdf = bg.build_vbo_gdf(st.session_state.vbo_objects, "vbo_points")
+#houses_gdf = bg.build_vbo_gdf(st.session_state.vbo_objects, "vbo_points")
 profielen_df = st.session_state.profielen
 gebruik_df = bg.build_gebruik_df(st.session_state.vbo_objects)
 
@@ -63,7 +64,7 @@ with left_col:
     # --- Capture click ---
     if map_data.get("last_object_clicked_tooltip"):
         st.session_state.selected_id = map_data["last_object_clicked_tooltip"]
-    """
+    
     if "last_msr_id" not in st.session_state:
         st.session_state.last_msr_id = None
         st.session_state.cached_df = None
@@ -77,10 +78,26 @@ with left_col:
         )
         st.session_state.last_msr_id = current_id
 
-    st.dataframe(st.session_state.cached_df)
-    """
+    #st.dataframe(st.session_state.cached_df)
+    
+    def parse_wkb(val):
+        if isinstance(val, str):
+            if val.startswith("\\x"):
+                val = val[2:]  # remove \x
+            return wkb.loads(bytes.fromhex(val))
+        return wkb.loads(val)
+
+
     # --- House map ---
     if st.session_state.selected_id:
+
+
+        df = st.session_state.cached_df.copy()
+
+        df["geometry"] = df["vbo_points"].apply(parse_wkb)
+
+        houses_gdf = gpd.GeoDataFrame(df, geometry="geometry", crs="EPSG:28992")
+
         selected_houses = houses_gdf[
             houses_gdf["owner_msr"].astype(int).astype(str) == str(st.session_state.selected_id)
         ].to_crs(epsg=4326)
@@ -98,7 +115,13 @@ with left_col:
                 zoom_start=17
             )
             for geom in selected_houses.geometry:
-                for point in geom.geoms:
+                # handle both MultiPoint and Point safely
+                if geom.geom_type == "Point":
+                    points = [geom]
+                else:
+                    points = geom.geoms
+
+                for point in points:
                     folium.CircleMarker(
                         location=[point.y, point.x],
                         radius=5,
@@ -111,6 +134,7 @@ with left_col:
             st_folium(house_map, width="100%", height=400, key="house_map")
         else:
             st.warning("No houses found for this MSR.")
+        
 
     #HvA_logo_url = "https://lectorenplatformleve.nl/wp-content/uploads/2021/11/HvA.jpg"
     HvA_logo_url = "https://amsterdamgreencampus.nl/wp-content/uploads/2016/01/AmsUniOfAppSci.png"
@@ -137,9 +161,10 @@ with right_col:
         #st.write("Updated selected_id:", st.session_state.selected_id)
 
         # Filter MSR row
-        msr_row = gebruik_df[gebruik_df["owner_msr"].astype(int).astype(str) == str(st.session_state.selected_id)]
+        #msr_row = gebruik_df[gebruik_df["owner_msr"].astype(int).astype(str) == str(st.session_state.selected_id)]
+        msr_row = st.session_state.cached_df
         EV_jvb_per_auto = 3500
-        st.dataframe(msr_row)
+        #st.dataframe(msr_row)
 
         if len(msr_row) > 0:
             # Display all columns as a simple table
@@ -149,7 +174,7 @@ with right_col:
 
             #Accom_elect_perc = st.slider("What percentage of accomodation is fully electric?", 0, 100, 25)
 
-            EV_perc_current = int(msr_row["percentage_evs_msr"].iloc[0])
+            EV_perc_current = int(msr_row["aantal_evs_m_msr"].iloc[0]/msr_row["aantal_personenautos_msr"].iloc[0])
 
             #year = st.slider("What year would you like to model? - For now only impacts EV adoption", 2025, 2050, 2025)
             EV_adoption_perc = st.slider("What percentage of EV adoption would you like to model?", EV_perc_current, 100, EV_perc_current)
