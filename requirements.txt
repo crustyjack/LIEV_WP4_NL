@@ -4,3 +4,4 @@ gspread
 shapely
 folium
 streamlit_folium
+sqlalchemy
