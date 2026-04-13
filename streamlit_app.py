@@ -148,7 +148,7 @@ with right_col:
     if st.session_state.selected_id:
         st.subheader(f"MSR: {st.session_state.selected_id}")
 
-        st.write("Current selected_id:", st.session_state.selected_id)
+        #st.write("Current selected_id:", st.session_state.selected_id)
 
         # Input box
         #new_id = st.text_input("Override selected_id")
@@ -174,7 +174,11 @@ with right_col:
 
             #Accom_elect_perc = st.slider("What percentage of accomodation is fully electric?", 0, 100, 25)
 
-            EV_perc_current = int(msr_row["aantal_evs_m_msr"].iloc[0]/msr_row["aantal_personenautos_msr"].iloc[0])
+            #st.write(int(msr_row["aantal_evs_m_msr"].iloc[0]))
+            #st.write(int(msr_row["aantal_personenautos_msr"].iloc[0]))
+            #st.write(int(msr_row["aantal_evs_m_msr"].iloc[0]/msr_row["aantal_personenautos_msr"].iloc[0]))
+
+            EV_perc_current = int(msr_row["aantal_evs_m_msr"].iloc[0]*100/msr_row["aantal_personenautos_msr"].iloc[0])
 
             #year = st.slider("What year would you like to model? - For now only impacts EV adoption", 2025, 2050, 2025)
             EV_adoption_perc = st.slider("What percentage of EV adoption would you like to model?", EV_perc_current, 100, EV_perc_current)
