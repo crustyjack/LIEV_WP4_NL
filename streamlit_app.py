@@ -74,7 +74,7 @@ with left_col:
     if current_id != st.session_state.last_msr_id:
         st.session_state.cached_df = bg.load_room_objects2(
             current_id,
-            "datamichael08april26"
+            "datamichael13april26"
         )
         st.session_state.last_msr_id = current_id
 
@@ -181,11 +181,12 @@ with right_col:
             #WP_adoption_perc = st.slider("What percentage of electrical heat pump adoption would you like to model?", 10, 100, 10)
 
             df_output = bg.profile_creator(profielen_df, msr_row, EV_adoption_perc, EV_jvb_per_auto)
-            #st.dataframe(df_output)
+            
             df_output = bg.update_charge_strat(df_output, charge_strat, profielen_df, msr_row, EV_adoption_perc, EV_jvb_per_auto) #gebruik_df, st.session_state.selected_id)
             #df_output = bg.adjust_EV_profile(df_output, EV_adoption_perc, EV_factor=5)
 
             #df_output = bg._map_2024_to_year(df_output, year)
+            #st.dataframe(df_output)
 
             if "min_max" not in st.session_state:
                 st.session_state.min_max = "-"
@@ -244,6 +245,7 @@ with right_col:
                     bg.prepare_plot_df(start_date, end_date, df_output)
                     st.session_state.awaiting_confirmation = False
 
+            #st.dataframe(st.session_state["df_plot_data"])
             plot_placeholder = st.empty()   # chart will appear BELOW this
 
             # ---- INIT SESSION STATE ----
