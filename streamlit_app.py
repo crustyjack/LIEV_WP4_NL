@@ -162,7 +162,7 @@ with left_col:
         )
         st.session_state.last_msr_id = current_id
 
-    st.dataframe(st.session_state.cached_df)
+    #st.dataframe(st.session_state.cached_df)
     def parse_wkb(val):
         if isinstance(val, str):
             if val.startswith("\\x"):
