@@ -18,7 +18,7 @@ from shapely import wkt, wkb
 #from datetime import timedelta
 from PIL import Image
 from io import BytesIO
-from folium.plugins import FastMarkerCluster
+from folium.plugins import FastMarkerCluster, Geocoder
 
 class BackgroundCode:
 
@@ -115,7 +115,7 @@ class BackgroundCode:
 
         _df["msr_coordinates"] = _df["msr_coordinates"].apply(to_geometry)
 
-        # Filter out rows that couldn’t be converted, optional
+        # Filter out rows that couldn't be converted, optional
         #_df = _df[_df["msr_coordinates"].notna()]
 
         return gpd.GeoDataFrame(_df, geometry="msr_coordinates", crs="EPSG:28992")
@@ -147,7 +147,7 @@ class BackgroundCode:
 
         _df[col_name] = _df[col_name].apply(to_geometry)
         
-        # Optionally remove rows that couldn’t be converted
+        # Optionally remove rows that couldn't be converted
         _df = _df[_df[col_name].notna()]
 
         return gpd.GeoDataFrame(_df, geometry=col_name, crs="EPSG:28992")
@@ -190,11 +190,10 @@ class BackgroundCode:
 
         # EV and solar
         df_MSR_profile["EV oplaad [kW]"] = df_profiles["Elaad_normal_norm. [kWh/kWh]"].copy()*msr_row["aantal_personenautos_msr"].iloc[0]*EV_adoption_perc/100*EV_jvb_per_auto*4 # (KWh per EV per year)
-        df_MSR_profile["Zonnepanelen [kW]"] = -df_profiles["ZP normalised energy [kWh/kWh]"].copy()*msr_row["jaaropwek_pv"].iloc[0]*4
-
+        
         df_MSR_profile["Utiliteit totaal [kW]"] = df_MSR_profile["Winkel [kW]"] + df_MSR_profile["Onderwijs [kW]"] + df_MSR_profile["Kantoor_Gezondsheid [kW]"] + df_MSR_profile["Industrie [kW]"] + df_MSR_profile["Sport_Bijeenkomst_Overig [kW]"] + df_MSR_profile["Logies [kW]"]
         
-        df_MSR_profile["MSR totaal [kW]"] = df_MSR_profile["Woningen totaal [kW]"] + df_MSR_profile["Utiliteit totaal [kW]"] + df_MSR_profile["EV oplaad [kW]"] + df_MSR_profile["Zonnepanelen [kW]"] #+ df_MSR_profile["Oplaad punten [kW]"]
+        df_MSR_profile["MSR totaal [kW]"] = df_MSR_profile["Woningen totaal [kW]"] + df_MSR_profile["Utiliteit totaal [kW]"] + df_MSR_profile["EV oplaad [kW]"] # + df_MSR_profile["Zonnepanelen [kW]"] + df_MSR_profile["Oplaad punten [kW]"]
         df_MSR_profile["MSR totaal_base profile [kW]"] = df_MSR_profile["MSR totaal [kW]"]
         df_MSR_profile["DATUM_TIJDSTIP_2024"] = pd.to_datetime(df_MSR_profile["DATUM_TIJDSTIP_2024"], dayfirst=True)
 
@@ -208,7 +207,7 @@ class BackgroundCode:
         # this data still to be added to gsheets
         #df["Oplaad punten [kW]"] = df_profiles[charge_profile_name].copy()*msr_row["jvb_EV"]*4
         df["EV oplaad [kW]"] = df_profiles[charge_profile_name].copy()*msr_row["aantal_personenautos_msr"].iloc[0]*EV_adoption_perc/100*EV_jvb_per_auto*4
-        df["MSR totaal [kW]"] = df["Woningen totaal [kW]"] + df["Utiliteit totaal [kW]"] + df["EV oplaad [kW]"] + df["Zonnepanelen [kW]"] 
+        df["MSR totaal [kW]"] = df["Woningen totaal [kW]"] + df["Utiliteit totaal [kW]"] + df["EV oplaad [kW]"]
    
 
         return df
@@ -239,7 +238,7 @@ class BackgroundCode:
         cols_to_plot = [
             "Woningen totaal [kW]",
             "Utiliteit totaal [kW]",
-            "Zonnepanelen [kW]",
+            #"Zonnepanelen [kW]",
             "EV oplaad [kW]",
             "MSR totaal [kW]"
         ]
@@ -255,34 +254,18 @@ class BackgroundCode:
                 "EV oplaad [kW]",
                 "Utiliteit totaal [kW]",
                 "Woningen totaal [kW]",
-                "Zonnepanelen [kW]"
-            ]
+            ],
+            max_base_profile=None
         ):
         if df is None or df.empty:
             placeholder.write("No data to plot.")
             return
-        """
-        label_map = {
-            "EV oplaad [kW]" : "Public charging points",
-            "Utiliteit totaal [kW]": "Utility buildings",
-            "Woningen totaal [kW]": "Accomodation buildings",
-            "Zonnepanelen [kW]": "Solar panels"
-        }
-
-        dashed_series = [
-            "Public charging points",
-            "Utility buildings",
-            "Accomodation buildings",
-            "Solar panels"
-        ]
-        """
 
         legend_order = [
             "MSR totaal [kW]",
             "Woningen totaal [kW]",
             "Utiliteit totaal [kW]",
             "EV oplaad [kW]",
-            "Zonnepanelen [kW]"
         ]
         
         # Reset index safely
@@ -301,16 +284,13 @@ class BackgroundCode:
             value_name="value"
         )
 
-        #df_long["series"] = df_long["series"].replace(label_map)
-
-        # Build chart
+        # Build main line chart
         chart = (
             alt.Chart(df_long)
             .mark_line()
             .encode(
-                x=alt.X(index_col + ":T", title="Date"),   # Temporal axis (date/time)
+                x=alt.X(index_col + ":T", title="Date"),
                 y=alt.Y("value:Q", title="Power [kW]"),
-                #color=alt.Color("series:N", title="", sort=legend_order),
                 color=alt.Color(
                     "series:N",
                     title="",
@@ -328,13 +308,46 @@ class BackgroundCode:
                     alt.value(2.5)           # thicker solid lines
                 )
             )
-            .properties(
-                padding={"bottom": 40}         # add 40px bottom margin
-            )
         )
+        
+        # Add horizontal red line for max base profile if provided
+        if max_base_profile is not None:
+            rule = alt.Chart(pd.DataFrame({'y': [max_base_profile]})).mark_rule(
+                color='red',
+                strokeDash=[5, 5],
+                strokeWidth=2
+            ).encode(
+                y='y:Q'
+            )
+            
+            # Add text annotation for the line
+            text = alt.Chart(pd.DataFrame({
+                'y': [max_base_profile],
+                'label': [f'Max standaard: {int(max_base_profile)} kW']
+            })).mark_text(
+                align='right',
+                dx=-5,
+                dy=-5,
+                color='red',
+                fontSize=11,
+                fontWeight='bold'
+            ).encode(
+                x=alt.value(0),  # Position at the left
+                y='y:Q',
+                text='label:N'
+            )
+            
+            # Combine all layers
+            chart = (chart + rule + text).properties(
+                padding={"bottom": 40}
+            )
+        else:
+            chart = chart.properties(
+                padding={"bottom": 40}
+            )
 
         # Render chart
-        placeholder.altair_chart(chart, width='stretch')
+        placeholder.altair_chart(chart, use_container_width=True)
 
     @staticmethod
     @st.cache_resource
